@@ -1,0 +1,5 @@
+.gradle/
+.idea/
+.vagrant/
+gradle/
+*.iml
