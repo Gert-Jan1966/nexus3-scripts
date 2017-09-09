@@ -34,6 +34,9 @@ import java.util.concurrent.TimeUnit
 int daysInterval = 30
 int componentsToKeep = 1
 def skippedRepos = [ "thirdparty" ]
+def skippedArtifacts = [// a map of repository names to artifact names to skip deleting
+    "maven-releases": [ "my-special-artifact" ]
+]
 
 int secondsInterval = TimeUnit.DAYS.toSeconds(daysInterval)
 
@@ -41,6 +44,7 @@ log.info("**********************************")
 log.info("daysInterval: ${daysInterval}, secondsInterval: ${secondsInterval}")
 log.info("componentsToKeep: ${componentsToKeep}")
 log.info("skippedRepos: ${skippedRepos}")
+log.info("skippedArtifacts: ${skippedArtifacts}")
 log.info("**********************************")
 
 class ReverseDateTimeComparator implements Comparator<DateTime> {
@@ -65,12 +69,20 @@ for (Repository repository : repoManager.browse()) {
     try {
         storageTx.begin()
 
+        // Get the artifacts that should be skipped on this repository
+        List repoSkippedArtifacts = skippedArtifacts.find{ it.key == repository.getName() }?.value
+
         log.info("Collecting components history")
         HashMap<String, SortedMap<DateTime, Component>> artifacts = new HashMap<String, SortedMap<DateTime, Component>>()
         SortedMap<DateTime, Component> sortedComponents
         ReverseDateTimeComparator reverseComparator = new ReverseDateTimeComparator()
         String gaString
         for (Component component : storageTx.browseComponents(storageTx.findBucket(repository))) {
+            if (repoSkippedArtifacts && repoSkippedArtifacts.contains(component.name())) {
+                log.info("Skipping {} as it is in the skippedArtifacts list", component.name())
+                continue // ignore component
+            }
+            
             gaString = sprintf("%s:%s", [component.group(), component.name()])
             if (artifacts.containsKey(gaString)) {
                 sortedComponents = artifacts.get(gaString)
